@@ -1,24 +1,30 @@
-# Use OpenJDK 17 (Render supports 17 and 21)
-FROM eclipse-temurin:17-jdk-alpine
+# Use Maven image to build the app
+FROM maven:3.9.6-eclipse-temurin-17 AS build
 
 # Set working directory
 WORKDIR /app
 
-# Copy Maven wrapper and pom.xml
-COPY .mvn .mvn
-COPY mvnw pom.xml ./
-
-# Download dependencies
-RUN ./mvnw dependency:go-offline -B
+# Copy pom.xml and download dependencies
+COPY pom.xml .
+RUN mvn dependency:go-offline
 
 # Copy all source code
-COPY src src
+COPY src ./src
 
-# Package the Spring Boot app (creates target/*.jar)
-RUN ./mvnw package -DskipTests
+# Package the Spring Boot app
+RUN mvn package -DskipTests
 
-# Expose port 8081 (Render default)
-EXPOSE 8081
+# ---- Second Stage: Run the app ----
+
+FROM eclipse-temurin:17-jdk-alpine
+
+WORKDIR /app
+
+# Copy the jar from build stage
+COPY --from=build /app/target/*.jar app.jar
+
+# Expose port 8080
+EXPOSE 8080
 
 # Run the app
-CMD ["java", "-jar", "target/*.jar"]
+CMD ["java", "-jar", "app.jar"]
